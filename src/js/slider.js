@@ -17,7 +17,8 @@ class Slider {
       },
       swipe: true,
       autoHeight: true,
-      threshold: '25%',
+      // threshold: '25%',
+      threshold: 40,
 
       DIRS: {
         LEFT: 'left',
@@ -79,6 +80,8 @@ class Slider {
     self.buildDots();
     self.createClones();
     self.updateSliderDimension();
+    self.updateDots();
+    self.setupNavigation();
 
     if (self.def.swipe) {
       addListeners(self.sliderInner, 'mousedown touchstart', startSwipe);
@@ -149,7 +152,7 @@ class Slider {
         self.curTranslate = -self.slideWidth;
       }
 
-      const translateValue = `${self.curTranslate + moveDistance}px`;
+      const translateValue = self.curTranslate + moveDistance;
 
       self.setTranslate(translateValue);
     }
@@ -188,6 +191,7 @@ class Slider {
         }
       }
 
+      self.updateDots();
       self.gotoSlide();
 
       self.startX = null;
@@ -218,6 +222,49 @@ class Slider {
   bindEvents() {}
 }
 
+Slider.prototype.setupNavigation = function() {
+  const self = this;
+
+  addListeners(self.arrowLeft, 'click', function() {
+    if(self.isAnimating) return false;
+
+    self.curSlide -= 1;
+
+    if(self.curSlide < 0) {
+      const translateValue = -(self.totalSlides * self.slideWidth);
+      self.setTranslate(translateValue);
+
+      self.curSlide = self.totalSlides - 1;
+    }
+
+    self.updateDots();
+
+    setTimeout(function() {
+      self.gotoSlide();
+    }, 0)
+  });
+
+  addListeners(self.arrowRight, 'click', function() {
+    if(self.isAnimating) return false;
+
+    self.curSlide += 1;
+
+    if( self.curSlide > self.totalSlides + 1) {
+      const translateValue = -(self.slideWidth);
+      self.setTranslate(translateValue);
+
+      self.curSlide = 2;
+    }
+
+    self.updateDots();
+
+    // FIXME setTimeout하지 않을 경우 translate가 변하기 전에 gotoSLide 함수가 실행됨
+    setTimeout(function() {
+      self.gotoSlide();
+    }, 0)
+  });
+}
+
 // 슬라이드 이동
 Slider.prototype.gotoSlide = function () {
   const self = this;
@@ -226,7 +273,7 @@ Slider.prototype.gotoSlide = function () {
     self.def.transition.speed / 1000
   }s ${self.def.transition.easing}`;
 
-  const translateValue = `-${self.curSlide * self.slideWidth}px`;
+  const translateValue = -(self.curSlide * self.slideWidth);
 
   self.setTranslate(translateValue);
 
@@ -266,6 +313,28 @@ Slider.prototype.createClones = function () {
   self.allSlides = self.target.querySelectorAll('.slide');
 };
 
+Slider.prototype.updateDots = function() {
+  const self = this;
+
+  if(!self.totalSlides) return false;
+
+  const $dots = self.dotsWrapper.querySelectorAll('.dot');
+
+  Array.prototype.forEach.call($dots, function(dot) {
+    dot.classList.remove('active');
+  });
+
+  let activeIndex = self.curSlide - 1;
+
+  if(self.curSlide === 0) {
+    activeIndex = self.totalSlides - 1;
+  } else if (self.curSlide > self.totalSlides) {
+    activeIndex = 0;
+  }
+
+  $dots[activeIndex].classList.add('active');
+};
+
 // Dots 생성
 Slider.prototype.buildDots = function () {
   const self = this;
@@ -280,13 +349,29 @@ Slider.prototype.buildDots = function () {
   self.dotsWrapper.addEventListener(
     'click',
     function (e) {
+      if(self.isAnimating) return false;
+
       const $target = e.target;
 
-      if ($target && $target.nodeName === 'LI') {
-        self.curSlide = $target.getAttribute('data-slide');
+      if ($target && $target.nodeName !== 'LI') return false;
 
-        self.gotoSlide();
+      if(self.curSlide === self.totalSlides + 1) {
+        const translateValue = -(self.slideWidth);
+
+        self.setTranslate(translateValue);
+      } else if(self.curSlide === 0) {
+        const translateValue = -(self.totalSlides * self.slideWidth);
+
+        self.setTranslate(translateValue);
       }
+      
+      self.curSlide = Number($target.getAttribute('data-slide'));
+
+      self.updateDots();
+
+      setTimeout(function() {
+        self.gotoSlide();
+      }, 0)
     },
     false
   );
@@ -298,7 +383,7 @@ Slider.prototype.updateSliderDimension = function (event) {
   self.getSlideWidth();
   self.getThreshold();
 
-  const translateValue = `-${self.slideWidth * self.curSlide}px`;
+  const translateValue = -(self.slideWidth * self.curSlide);
 
   self.setTranslate(translateValue);
 };
@@ -348,13 +433,13 @@ Slider.prototype.getCurTranslate = function (axis = 'x') {
  * Slider Inner translate값 변경
  * @param {string} value
  */
-Slider.prototype.setTranslate = function (value = '0px', axis = 'x') {
+Slider.prototype.setTranslate = function (value = 0, axis = 'x') {
   const self = this;
 
   if (axis === 'x') {
-    self.sliderInner.style.transform = `translate3d(${value}, 0, 0)`;
+    self.sliderInner.style.transform = `translate3d(${value}px, 0, 0)`;
   } else {
-    self.sliderInner.style.transform = `translate3d(0, ${value}, 0)`;
+    self.sliderInner.style.transform = `translate3d(0, ${value}px, 0)`;
   }
 
   return true;
